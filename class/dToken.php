@@ -1,7 +1,7 @@
 <?php
 
 class dToken {
-  private string $secret;
+  protected string $secret;
   public string $token;
   public object $payload;
   public bool $isLogged;
@@ -40,5 +40,9 @@ class dToken {
   public function setPayload( object $payload ) {
     $this->payload = $payload;
     $this->update();
+  }
+
+  public function __toString() {
+    return $this->token;
   }
 }

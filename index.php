@@ -13,12 +13,11 @@ $token->setPayload( (object) [
 // TEST Headers
 echo '<pre>';
 
-print_r([
-  'token' => $token->token ?? null,
-  'Payload' => $token->payload ?? null,
-  'isLogged' => $token->isLogged ? 'Yes' : 'No',
-  'Headers' => 'Check the response headers from your browser'
-]);
+echo 'Token: ' . $token . PHP_EOL;
+echo 'Payload: ';
+print_r( $token->payload );
+echo 'isLogged: ' . ($token->isLogged ? 'Yes' : 'No') . PHP_EOL.PHP_EOL;
+echo 'Check the response headers from your browser';
 
 echo '</pre>';
 
