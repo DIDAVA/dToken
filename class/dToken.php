@@ -1,48 +1,65 @@
 <?php
+declare(strict_types = 1);
 
-class dToken {
-  protected string $secret;
-  public string $token;
+final class Token {
+
+  public string $value;
   public object $payload;
-  public bool $isLogged;
+  public bool $isSignedIn;
+  public bool $testMode;
 
   public function __construct() {
-    $this->isLogged = false;
-    $this->secret = '128643cf384ff7aeb47bfac787bc7f7b8f262ffc5d996fe59d32944d7dfde1f9';
-    $pattern = '/^(Bearer )[\w\/+-]+={0,2}.[\w\/+-]+={0,2}$/';
-    $headers = apache_request_headers();
-    if (!empty($headers) && array_key_exists('Authorization', $headers) && preg_match($pattern, $headers['Authorization']) == 1) {
-      $this->token = str_replace( 'Bearer ', '', $headers['Authorization'] );
-      $t = explode( '.', $this->token );
-      $signature = base64_decode( $t[1] );
-      $hash = hash( 'sha256', $t[0].$this->secret, true );
-      if (strcmp($signature, $hash) == 0) {
-        $this->payload = json_decode( base64_decode( $t[0] ) );
-        if (!empty($this->payload) && !empty($this->payload->iss) && $this->payload->iss == 'dToken' && !empty($this->payload->exp)) {
-          if ( $this->payload->exp >= time() ) $this->update();
-        }
+    $this->testMode = PHP_SAPI === 'cli';
+    $this->value = '';
+    $this->isSignedIn = false;
+    $this->checkHeader();
+  }
+
+  protected function checkHeader(): void {
+    if ( !$this->testMode ) {
+      $pattern = '/^(Bearer )[\w\/+-]+={0,2}.[\w\/+-]+={0,2}$/';
+      $headers = apache_request_headers();
+      if (array_key_exists('Authorization', $headers) && preg_match($pattern, $headers['Authorization']) == 1) {
+        $token = str_replace( 'Bearer ', '', $headers['Authorization'] );
+        $this->parse( $token );
       }
     }
   }
 
-  private function update() {
+  public function fromString( string $token ): void {
+    $pattern = '/^[\w\/+-]+={0,2}.[\w\/+-]+={0,2}$/';
+    if (preg_match($pattern, $token)) $this->parse( $token );
+  }
+
+  protected function parse( string $token ): void {
+    $token = explode( '.', $token );
+    if (strcmp($this->sign($token[0]), $token[1]) == 0) {
+      $payload = json_decode( base64_decode( $token[0] ) );
+      if (!empty($payload) && !empty($payload->iss) && $payload->iss == 'dToken' && !empty($payload->exp) && $payload->exp >= time()) {
+        $this->update( $payload );
+      }
+    }
+  }
+
+  protected function sign( string $payload ): string {
+    $secret = '128643cf384ff7aeb47bfac787bc7f7b8f262ffc5d996fe59d32944d7dfde1f9';
+    $hash = hash( 'sha256', $payload.$secret, true );
+    return base64_encode( $hash );
+  }
+
+  public function update( object $payload ): void {
     $now = time();
-    $this->payload->iss = 'dToken';
-    $this->payload->iat = $now;
-    $this->payload->exp = $now + 3600;
-    $payload = base64_encode( json_encode( $this->payload ) );
-    $signature = base64_encode( hash( 'sha256', $payload.$this->secret, true ) );
-    $this->token = $payload . '.' . $signature;
-    header( 'Authorization: Bearer '.$this->token );
-    $this->isLogged = true;
+    $payload->iss = 'dToken';
+    $payload->iat = $now;
+    $payload->exp = $now + 3600;
+    $b64 = base64_encode( json_encode( $payload ) );
+    $this->value = $b64 . '.' . $this->sign( $b64 );
+    $this->isSignedIn = true;
+    if (!$this->testMode) header( 'Authorization: Bearer '.$this->value );
   }
 
-  public function setPayload( object $payload ) {
-    $this->payload = $payload;
-    $this->update();
+  public function __toString(): string {
+    return $this->value;
   }
 
-  public function __toString() {
-    return $this->token;
-  }
 }
