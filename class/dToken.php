@@ -1,7 +1,7 @@
 <?php
 declare(strict_types = 1);
 
-final class Token {
+final class dToken {
 
   public string $value;
   public object $payload;
